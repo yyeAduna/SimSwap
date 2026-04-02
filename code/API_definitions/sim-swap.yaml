@@ -26,9 +26,9 @@ info:
 
     # API functionality
 
-    The API provides 2 operations:
+    The API provides 3 operations:
 
-    - POST retrieve-date : Provides the following two flavors as responses:
+    - POST retrieve-date : Provides the following as responses:
 
       - Timestamp of latest SIM swap, if any, for a given phone number.
 
@@ -36,26 +36,29 @@ info:
 
           - If the latest SIM swap date (or the activation date if no SIM swap) cannot be communicated due to local regulations (or MNO internal privacy policies) preventing the safekeeping of the information for longer than the stated period, a `null` value will be returned. Optionally, a `monitoredPeriod` could be provided to indicate monitored time frame (in days) supported by the MNO. In this case the response must be treated as "there were no sim swap events during 'monitoredPeriod'. Either the parameter is optional, it is recommended to support it in SimSwap implementations.
 
+    - POST age-band : Provides the following as responses:
+    
       - SimSwapAgeBandEnum as a standardized recency bucket representing the elapsed time between the SIM activation/change date and the current time. The value maps the duration into fixed bands (0–14), ranging from 0 hours up to 3+ years.
-
+           - If no swap has been performed with in the monitoring window due to local regulations (or MNO internal policies), a "0" value shall be returned, a optional `monitoredPeriod` could be provided to indicate monitored time frame (in days) supported by the MNO. In this case the response must be treated as "there were no sim swap events during 'monitoredPeriod'. It is optional, but it is recommended to support it in SimSwap implementations. 
+           - If there is a `monitoredPeriod`, the age-bands number out of the monitoring period window will not be returned.
+           
            - Standardized AgeBand enum mapping: <br>
-            0  = 0h ≤ d < 4h <br>
-            1  = 4h ≤ d < 12h <br>
-            2  = 12h ≤ d < 1d <br>
-            3  = 1d ≤ d < 2d <br>
-            4  = 2d ≤ d < 5d <br>
-            5  = 5d ≤ d < 7d <br>
-            6  = 7d ≤ d < 14d <br>
-            7  = 14d ≤ d < 30d <br>
-            8  = 30d ≤ d < 60d <br>
-            9  = 60d ≤ d < 90d <br>
-            10 = 90d ≤ d < 180d <br>
-            11 = 180d ≤ d < 1y <br>
-            12 = 1y ≤ d < 2y <br>
-            13 = 2y ≤ d < 3y <br>
-            14 = 3y+ <br>
-            111 = Change has not happened <br>
-            999 = Subscriber valid, but no real-time profile found <br>
+              0 = Change has not happened<br>
+              1 = 0h ≤ d < 4h<br>
+              2 = 4h ≤ d < 12h<br>
+              3 = 12h ≤ d < 1d<br>
+              4 = 1d ≤ d < 2d<br>
+              5 = 2d ≤ d < 5d<br>
+              6 = 5d ≤ d < 7d<br>
+              7 = 7d ≤ d < 14d<br>
+              8 = 14d ≤ d < 30d<br>
+              9 = 30d ≤ d < 60d<br>
+              10 = 60d ≤ d < 90d<br>
+              11 = 90d ≤ d < 180d<br>
+              12 = 180d ≤ d < 1y<br>
+              13 = 1y ≤ d < 2y<br>
+              14 = 2y ≤ d < 3y<br>
+              15 = 3y+<br>
 
     - POST check: Checks if SIM swap has been performed during a past period (defined in the request with 'maxAge' attribute) for a given phone number.
 
@@ -129,6 +132,65 @@ paths:
       requestBody:
         description: |
           Create a SIM swap date request for a phone number.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSimSwapDate"
+            examples:
+              RETRIEVE_3LEGS:
+                $ref: "#/components/examples/RETRIEVE_3LEGS"
+              RETRIEVE_2LEGS:
+                $ref: "#/components/examples/RETRIEVE_2LEGS"
+
+        required: true
+      responses:
+        "200":
+          description: Contains information about SIM swap change
+          headers:
+            x-correlator:
+              $ref: '#/components/headers/x-correlator'
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimSwapInfo"
+              examples:
+                RETRIEVE_DATE:
+                  $ref: "#/components/examples/RETRIEVE_DATE"
+                RETRIEVE_MONITORED_PERIOD:
+                  $ref: "#/components/examples/RETRIEVE_MONITORED_PERIOD"
+                RETRIEVE_MONITORED_NULL:
+                  $ref: "#/components/examples/RETRIEVE_MONITORED_NULL"
+                RETRIEVE_AGEBAND:
+                  $ref: "#/components/examples/RETRIEVE_AGEBAND"
+        "400":
+          $ref: "#/components/responses/Generic400"
+        "401":
+          $ref: "#/components/responses/Generic401"
+        "403":
+          $ref: "#/components/responses/Generic403"
+        "404":
+          $ref: "#/components/responses/Generic404"
+        "422":
+          $ref: "#/components/responses/Generic422"
+        "429":
+          $ref: "#/components/responses/Generic429"
+  /age-band:
+    post:
+      security:
+        - openId:
+            - sim-swap:age-band
+        - openId:
+            - sim-swap
+      tags:
+        - Retrieve SIM swap age band
+      summary: Retrieve SIM swap age band
+      description: Get age band of last SIM swap event for a mobile user account provided with phone number.
+      operationId: retrieveSimSwapAgeBand
+      parameters:
+        - $ref: '#/components/parameters/x-correlator'
+      requestBody:
+        description: |
+          Create a SIM swap age band request for a phone number.
         content:
           application/json:
             schema:
@@ -277,8 +339,7 @@ components:
             - 12
             - 13
             - 14
-            - 111
-            - 999
+            - 15
           nullable: true
           example: 1
     CheckSimSwapInfo:
@@ -528,6 +589,11 @@ components:
       summary: SimSwap age band is sent back
       value:
         simSwapAgeBand: 1
+    RETRIEVE_AGEBAND_MONITORED_PERIOD:
+      summary: 0 is send back for the age band, but a monitoredPeriod is provided
+      value:
+        simSwapAgeBand: 0
+        monitoredPeriod: 120    
     CHECK_2LEGS:
       summary: Check request without 3-legged access tokens
       value:
